@@ -7,7 +7,7 @@ from javarandom import Random
 import torch
 import torch.nn.functional as F
 
-DEBUG = True
+DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
 DEFAULT_RADIUS = 16000
 DEFAULT_THRESHOLD = 50
