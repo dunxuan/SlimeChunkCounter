@@ -20,7 +20,6 @@ conda create -n .conda
 
 ```shell
 conda install cudatoolkit=11.8 cudnn pytorch torchvision torchaudio pytorch-cuda=11.8  -c pytorch -c nvidia
-
 pip install 'git+https://github.com/MostAwesomeDude/java-random.git'
 ```
 
@@ -28,6 +27,5 @@ pip install 'git+https://github.com/MostAwesomeDude/java-random.git'
 
 ```shell
 conda activate .conda
-
 python3 run.py
 ```
