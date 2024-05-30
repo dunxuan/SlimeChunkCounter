@@ -55,9 +55,7 @@ def get_radius():
         int: 检测半径, 默认为DEFAULT_RADIUS
     """
     radius = input(f"检测半径 [{DEFAULT_RADIUS}]:")
-    if not radius:
-        radius = f"{DEFAULT_RADIUS}"
-    return int(radius)
+    return int(radius) if radius else DEFAULT_RADIUS
 
 
 def get_threshold():
@@ -68,9 +66,7 @@ def get_threshold():
         int: 计数阈值, 默认为DEFAULT_THRESHOLD
     """
     threshold = input(f"计数阈值 [{DEFAULT_THRESHOLD}]:")
-    if not threshold:
-        threshold = f"{DEFAULT_THRESHOLD}"
-    return int(threshold)
+    return int(threshold) if threshold else DEFAULT_THRESHOLD
 
 
 def is_slime_chunk(chunkX, chunkZ, worldSeed):
@@ -78,9 +74,9 @@ def is_slime_chunk(chunkX, chunkZ, worldSeed):
     判断该区块是否是史莱姆区块
 
     Args:
-        chunkX (): 区块X坐标
-        chunkZ (): 区块Z坐标
-        worldSeed (): 世界种子
+        chunkX (np.int64): 区块X坐标
+        chunkZ (np.int64): 区块Z坐标
+        worldSeed (np.int64): 世界种子
 
     Returns:
         bool: 是否是史莱姆区块
@@ -110,9 +106,8 @@ def detect_slime_chunk(seed, chunk_radius):
         np.arange(-chunk_radius, chunk_radius + 1, dtype=np.int64),
         indexing="ij",
     )
-    # 矢量化is_slime_chunk函数
-    vectorized_is_slime_chunk = np.vectorize(is_slime_chunk)
-    chunks = vectorized_is_slime_chunk(x_coords, y_coords, seed)
+    vectorized_is_slime_chunk = np.vectorize(is_slime_chunk, excluded=["worldSeed"])
+    chunks = vectorized_is_slime_chunk(x_coords, y_coords, worldSeed=seed)
     return chunks
 
 
