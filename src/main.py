@@ -32,6 +32,7 @@ PATTERN = np.array([
     [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False]
 ])
 # fmt: on
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def init_logging():
@@ -111,7 +112,7 @@ def detect_slime_chunk(seed, chunk_radius):
     return chunks
 
 
-def run(radius, threshold):
+def run(radius, threshold, device):
     """
     循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
 
@@ -121,9 +122,6 @@ def run(radius, threshold):
     """
     afk_radius = radius // CHUNK_SIZE
     chunk_radius = afk_radius + SPAWN_RADIUS
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logging.info(f"Torch use device: {device}")
 
     pattern_tensor = (
         torch.tensor(PATTERN, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
@@ -179,8 +177,11 @@ def main():
     threshold = get_threshold()
     logging.info(f"threshold = {threshold}")
 
+    # 记录使用设备日志, CPU还是CUDA
+    logging.info(f"Torch use device: {device}")
+
     # 开始运行
-    run(radius, threshold)
+    run(radius, threshold, device)
 
 
 if __name__ == "__main__":
