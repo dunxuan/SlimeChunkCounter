@@ -112,7 +112,7 @@ def detect_slime_chunk(seed, chunk_radius):
     return chunks
 
 
-def run(radius, threshold, device):
+def run(radius, threshold, device=device):
     """
     循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
 
