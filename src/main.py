@@ -109,6 +109,23 @@ def is_slime_chunk(chunkX, chunkZ, worldSeed):
     return Random(seed).nextInt(10) == 0
 
 
+def generate_seeds(mode):
+    """
+    生成由模式控制的种子, 如果是multiple seeds模式(string)则随机生成, 否则使用模式指定的种子(种子值)
+
+    Args:
+        mode (string or int): 模式
+
+    Yields:
+        int: 种子值
+    """
+    if mode == "m":
+        while True:
+            yield random.randint(-(2**32), 2**32 - 1)
+    else:
+        yield mode
+
+
 def detect_slime_chunk(seed, chunk_radius):
     """
     获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表
@@ -148,8 +165,7 @@ def run(mode, radius, threshold, device=device):
     )
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
-    while True:
-        seed = random.randint(-(2**32), 2**32 - 1) if mode == "m" else mode
+    for seed in generate_seeds(mode):
         logging.debug(f"seed = {seed}")
 
         detected_chunks = detect_slime_chunk(seed, chunk_radius)
