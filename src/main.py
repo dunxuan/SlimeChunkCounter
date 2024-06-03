@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
+DEFAULT_MODE = "M"
 DEFAULT_RADIUS = 16000
 DEFAULT_THRESHOLD = 50
 CHUNK_SIZE = 16
@@ -46,6 +47,23 @@ def init_logging():
         level=LOG_LEVEL,
         format="%(asctime)s - %(levelname)s:\t\t\t%(message)s",
     )
+
+
+def get_mode():
+    """
+    用户输入运行模式, 是只计算单个种子还是随机种子循环运行
+
+    Returns:
+        string: 模式
+    """
+    mode = (
+        input(
+            f"运行模式, 计算所有种子(multiple seeds)或单个种子(singel seed) ([{DEFAULT_MODE}]ultiple seeds/种子值):"
+        )
+        .strip()
+        .lower()
+    )
+    return "m" if mode.startswith("m") else int(mode)
 
 
 def get_radius():
@@ -112,13 +130,15 @@ def detect_slime_chunk(seed, chunk_radius):
     return chunks
 
 
-def run(radius, threshold, device=device):
+def run(mode, radius, threshold, device=device):
     """
     循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
 
     Args:
+        mode (string or int): 运行模式值
         radius (int): 检测半径
         threshold (int): 计数阈值
+        device (tensor.device): 默认即可, 参数在此处作为调试使用
     """
     afk_radius = radius // CHUNK_SIZE
     chunk_radius = afk_radius + SPAWN_RADIUS
@@ -129,7 +149,7 @@ def run(radius, threshold, device=device):
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
     while True:
-        seed = random.randint(-(2**32), 2**32 - 1)
+        seed = random.randint(-(2**32), 2**32 - 1) if mode == "m" else mode
         logging.debug(f"seed = {seed}")
 
         detected_chunks = detect_slime_chunk(seed, chunk_radius)
@@ -161,13 +181,19 @@ def run(radius, threshold, device=device):
                 f"This World isn't have exceed the threshold value: seed = {seed}"
             )
 
-        if DEBUG:
+        if DEBUG or mode != "m":
             break
 
 
 def main():
     # 初始化日志设置
     init_logging()
+
+    # 获取运行模式，并记录日志
+    mode = get_mode()
+    logging.info(
+        f"mode or singel seed number = {'multiple seeds' if mode == 'm' else mode}"
+    )
 
     # 获取检测半径, 并记录日志
     radius = get_radius()
@@ -181,7 +207,7 @@ def main():
     logging.info(f"Torch use device: {device}")
 
     # 开始运行
-    run(radius, threshold, device)
+    run(mode, radius, threshold, device)
 
 
 if __name__ == "__main__":

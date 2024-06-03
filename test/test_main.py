@@ -75,6 +75,6 @@ def test_run(mock_randint, capsys):
     from src.main import run
 
     mock_randint.return_value = 0
-    run(0, 0)
+    run(0, 0, 0)
     captured = capsys.readouterr()
     assert captured.out == "史莱姆区块数: 12, 种子: 0, 挂机点区块位置: (0, 0)\n"
