@@ -12,7 +12,10 @@ cd SlimeChunkCounter
 
 2. Create Conda environment
 
-Use your usually usage to create Conda environment.
+```shell
+conda create --prefix .conda python=3.11
+conda activate /path/to/.conda
+```
 
 3. Install packages
 
