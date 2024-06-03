@@ -14,7 +14,7 @@ cd SlimeChunkCounter
 
 ```shell
 conda create --prefix .conda python=3.11
-conda activate /path/to/.conda
+conda activate "/path/to/.conda"
 ```
 
 3. Install packages
