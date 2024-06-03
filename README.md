@@ -27,5 +27,5 @@ pip install 'git+https://github.com/MostAwesomeDude/java-random.git'
 4. Run Code
 
 ```shell
-python3 run.py
+python run.py
 ```
