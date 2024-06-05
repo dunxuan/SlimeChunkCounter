@@ -65,7 +65,7 @@ def get_mode():
         .strip()
         .lower()
     )
-    return "m" if mode.startswith("m") else int(mode)
+    return ("m" if mode.startswith("m") else int(mode)) if mode else int(mode)
 
 
 def get_radius():

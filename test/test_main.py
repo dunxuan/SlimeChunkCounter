@@ -37,6 +37,14 @@ def test_is_slime_chunk():
     assert is_slime_chunk(2, 2, 0) is True
 
 
+def test_get_mode(monkeypatch):
+    from src.main import get_mode
+
+    monkeypatch.setattr("builtins.input", lambda _: "10000")
+    assert get_mode() == 10000
+    monkeypatch.setattr("builtins.input", lambda _: "m")
+    assert get_mode() == 'm'
+
 def test_get_radius(monkeypatch):
     from src.main import get_radius
 
