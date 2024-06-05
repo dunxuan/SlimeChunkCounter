@@ -6,6 +6,8 @@ import numpy as np
 from javarandom import Random
 import torch
 import torch.nn.functional as F
+import multiprocessing
+from functools import partial
 
 DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
@@ -126,16 +128,16 @@ def generate_seeds(mode):
         yield mode
 
 
-def detect_slime_chunk(seed, chunk_radius):
+def detect_slime_chunk_parallel(seed, chunk_radius):
     """
-    获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表
+    获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表 (并行版本)
 
     Args:
         seed (int): 世界种子
         chunk_radius (int): 检测半径（区块）
 
     Returns:
-        np.ndarray: 检测完成的区块表
+        tuple: (seed, np.ndarray) 检测完成的区块表
     """
     x_coords, y_coords = np.meshgrid(
         np.arange(-chunk_radius, chunk_radius + 1, dtype=np.int64),
@@ -144,12 +146,12 @@ def detect_slime_chunk(seed, chunk_radius):
     )
     vectorized_is_slime_chunk = np.vectorize(is_slime_chunk, excluded=["worldSeed"])
     chunks = vectorized_is_slime_chunk(x_coords, y_coords, worldSeed=seed)
-    return chunks
+    return seed, chunks
 
 
-def run(mode, radius, threshold, device=device):
+def run_parallel(mode, radius, threshold, device=device):
     """
-    循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
+    并行方式循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
 
     Args:
         mode (string or int): 运行模式值
@@ -165,40 +167,42 @@ def run(mode, radius, threshold, device=device):
     )
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
-    for seed in generate_seeds(mode):
-        logging.debug(f"seed = {seed}")
+    with multiprocessing.Pool(None if mode == "m" else 1) as p:
+        for seed, detected_chunks in p.imap(
+            partial(detect_slime_chunk_parallel, chunk_radius=chunk_radius),
+            generate_seeds(mode),
+        ):
+            logging.debug(f"seed = {seed}")
+            logging.debug(f"detected_chunks = {detected_chunks}")
 
-        detected_chunks = detect_slime_chunk(seed, chunk_radius)
-        logging.debug(f"detected_chunks = {detected_chunks}")
-
-        chunk_tensor = (
-            torch.tensor(detected_chunks, dtype=torch.float32)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .to(device)
-        )
-        logging.debug(f"chunk_tensor = {chunk_tensor}")
-
-        conv_result = F.conv2d(chunk_tensor, pattern_tensor)
-        logging.debug(f"conv_result= {conv_result}")
-
-        if (conv_result >= threshold).sum().item() > 0:
-            _, _, H_out, W_out = conv_result.shape
-
-            for h, w in np.ndindex(H_out, W_out):
-                value = conv_result[0, 0, h, w]
-                x = h - chunk_radius + 7
-                z = w - chunk_radius + 7
-                message = f"史莱姆区块数: {value:.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
-                print(message)
-                logging.info(message)
-        else:
-            logging.debug(
-                f"This World isn't have exceed the threshold value: seed = {seed}"
+            chunk_tensor = (
+                torch.tensor(detected_chunks, dtype=torch.float32)
+                .unsqueeze(0)
+                .unsqueeze(0)
+                .to(device)
             )
+            logging.debug(f"chunk_tensor = {chunk_tensor}")
 
-        if DEBUG or mode != "m":
-            break
+            conv_result = F.conv2d(chunk_tensor, pattern_tensor)
+            logging.debug(f"conv_result= {conv_result}")
+
+            if (conv_result >= threshold).sum().item() > 0:
+                _, _, H_out, W_out = conv_result.shape
+
+                for h, w in np.ndindex(H_out, W_out):
+                    value = conv_result[0, 0, h, w]
+                    x = h - chunk_radius + 7
+                    z = w - chunk_radius + 7
+                    message = f"史莱姆区块数: {value:.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
+                    print(message)
+                    logging.info(message)
+            else:
+                logging.debug(
+                    f"This World isn't have exceed the threshold value: seed = {seed}"
+                )
+
+            if DEBUG or mode != "m":
+                break
 
 
 def main():
@@ -223,7 +227,7 @@ def main():
     logging.info(f"Torch use device: {device}")
 
     # 开始运行
-    run(mode, radius, threshold, device)
+    run_parallel(mode, radius, threshold, device)
 
 
 if __name__ == "__main__":
