@@ -120,7 +120,7 @@ def generate_seeds(mode):
     Yields:
         int: 种子值
     """
-    if mode == "m":
+    if mode == DEFAULT_MODE:
         while True:
             yield random.randint(-(2**32), 2**32 - 1)
     else:
@@ -203,7 +203,7 @@ def run(mode, radius, threshold, device=device):
                 f"This World isn't have exceed the threshold value: seed = {seed}"
             )
 
-        if DEBUG or mode != "m":
+        if DEBUG or mode != DEFAULT_MODE:
             break
 
 
@@ -214,7 +214,7 @@ def main():
     # 获取运行模式，并记录日志
     mode = get_mode()
     logging.info(
-        f"mode or singel seed number = {'multiple seeds' if mode == 'm' else mode}"
+        f"mode or singel seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}"
     )
 
     # 获取检测半径, 并记录日志
