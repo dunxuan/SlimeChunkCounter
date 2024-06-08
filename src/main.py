@@ -3,7 +3,6 @@ from multiprocessing import Pool
 import random
 import logging
 import os
-import numpy as np
 from javarandom import Random
 import torch
 import torch.nn.functional as F
@@ -15,8 +14,9 @@ DEFAULT_RADIUS = 16000
 DEFAULT_THRESHOLD = 50
 CHUNK_SIZE = 16
 SPAWN_RADIUS = 7
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # fmt: off
-PATTERN = np.array([
+PATTERN = torch.tensor([
     [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False],
     [False, False,  False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False,  False],
     [False, False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False],
@@ -32,9 +32,8 @@ PATTERN = np.array([
     [False, False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False],
     [False, False,  False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False,  False],
     [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False]
-])
+], dtype=torch.bool,device=device)
 # fmt: on
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def init_logging():
@@ -48,6 +47,11 @@ def init_logging():
         level=LOG_LEVEL,
         format="%(asctime)s - %(levelname)s:\t\t\t%(message)s",
     )
+
+
+def log_and_print(message):
+    print(message)
+    logging.info(message)
 
 
 def get_mode():
@@ -136,20 +140,25 @@ def detect_slime_chunk(seed, chunk_radius):
         chunk_radius (int): 检测半径（区块）
 
     Returns:
-        np.ndarray: 检测完成的区块表
+        torch.Tensor: 检测完成的区块表
     """
-    x_coords, y_coords = np.meshgrid(
-        np.arange(-chunk_radius, chunk_radius + 1, dtype=np.int64),
-        np.arange(-chunk_radius, chunk_radius + 1, dtype=np.int64),
+    x_coords, y_coords = torch.meshgrid(
+        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64),
+        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64),
         indexing="ij",
     )
 
-    params = [(x, y, seed) for x, y in zip(x_coords.flatten(), y_coords.flatten())]
+    params = [
+        (x.item(), y.item(), seed)
+        for x, y in zip(x_coords.flatten(), y_coords.flatten())
+    ]
 
     with Pool() as pool:
         results = pool.starmap(is_slime_chunk, params)
 
-    chunks = np.array(results).reshape(x_coords.shape)
+    chunks = torch.tensor(results, dtype=torch.bool, device=device).reshape(
+        x_coords.shape
+    )
     return chunks
 
 
@@ -161,50 +170,47 @@ def run(mode, radius, threshold, device=device):
         mode (str or int): 运行模式值
         radius (int): 检测半径
         threshold (int): 计数阈值
-        device (tensor.device): 默认即可, 参数在此处作为调试使用
+        device (torch.device): 默认即可, 参数在此处作为调试使用
     """
     afk_radius = radius // CHUNK_SIZE
     chunk_radius = afk_radius + SPAWN_RADIUS
 
-    pattern_tensor = (
-        torch.tensor(PATTERN, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
-    )
+    pattern_tensor = PATTERN.float().unsqueeze(0).unsqueeze(0).to(device)
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
     for seed in generate_seeds(mode):
-        logging.debug(f"seed = {seed}")
+        try:
+            logging.debug(f"seed = {seed}")
 
-        detected_chunks = detect_slime_chunk(seed, chunk_radius)
-        logging.debug(f"detected_chunks = {detected_chunks}")
+            detected_chunks = detect_slime_chunk(seed, chunk_radius)
+            logging.debug(f"detected_chunks = {detected_chunks}")
 
-        chunk_tensor = (
-            torch.tensor(detected_chunks, dtype=torch.float32)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .to(device)
-        )
-        logging.debug(f"chunk_tensor = {chunk_tensor}")
+            chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0).to(device)
+            logging.debug(f"chunk_tensor = {chunk_tensor}")
 
-        conv_result = F.conv2d(chunk_tensor, pattern_tensor)
-        logging.debug(f"conv_result= {conv_result}")
+            conv_result = F.conv2d(chunk_tensor, pattern_tensor)
+            logging.debug(f"conv_result= {conv_result}")
 
-        if (conv_result >= threshold).sum().item() > 0:
-            _, _, H_out, W_out = conv_result.shape
+            if (conv_result >= threshold).sum().item() > 0:
+                _, _, H_out, W_out = conv_result.shape
 
-            for h, w in np.ndindex(H_out, W_out):
-                value = conv_result[0, 0, h, w]
-                x = h - chunk_radius + 7
-                z = w - chunk_radius + 7
-                message = f"史莱姆区块数: {value:.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
-                print(message)
-                logging.info(message)
-        else:
-            logging.debug(
-                f"This World isn't have exceed the threshold value: seed = {seed}"
-            )
+                for h in range(H_out):
+                    for w in range(W_out):
+                        value = conv_result[0, 0, h, w].item()
+                        x = h - chunk_radius + 7
+                        z = w - chunk_radius + 7
+                        message = f"史莱姆区块数: {value:.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
+                        log_and_print(message)
+            else:
+                logging.debug(
+                    f"This World isn't have exceed the threshold value: seed = {seed}"
+                )
 
-        if DEBUG or mode != DEFAULT_MODE:
-            break
+            if DEBUG or mode != DEFAULT_MODE:
+                break
+
+        except KeyboardInterrupt:
+            log_and_print("检测到用户中断 (Ctrl+C)，程序终止。")
 
 
 def main():
@@ -213,23 +219,23 @@ def main():
 
     # 获取运行模式，并记录日志
     mode = get_mode()
-    logging.info(
+    log_and_print(
         f"mode or singel seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}"
     )
 
     # 获取检测半径, 并记录日志
     radius = get_radius()
-    logging.info(f"radius = {radius}")
+    log_and_print(f"radius = {radius}")
 
     # 获取计数阈值, 并记录日志
     threshold = get_threshold()
-    logging.info(f"threshold = {threshold}")
+    log_and_print(f"threshold = {threshold}")
 
     # 记录使用设备日志, CPU还是CUDA
-    logging.info(f"Torch use device: {device}")
+    log_and_print(f"Torch use device: {device}")
 
     # 开始运行
-    run(mode, radius, threshold, device)
+    run(mode, radius, threshold, device=device)
 
 
 if __name__ == "__main__":

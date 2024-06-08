@@ -66,10 +66,10 @@ def test_get_threshold(monkeypatch):
 
 
 def test_generate_seeds():
-    from src.main import generate_seeds
+    from src.main import generate_seeds, DEFAULT_MODE
 
     for _ in range(100):
-        seed_generator = generate_seeds("m")
+        seed_generator = generate_seeds(DEFAULT_MODE)
         seed = next(seed_generator)
         assert -(2**32) <= seed <= 2**32 - 1
 
