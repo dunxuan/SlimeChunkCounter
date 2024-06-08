@@ -191,16 +191,17 @@ def run(mode, radius, threshold, device=device):
             conv_result = F.conv2d(chunk_tensor, pattern_tensor)
             logging.debug(f"conv_result= {conv_result}")
 
-            if (conv_result >= threshold).sum().item() > 0:
-                _, _, H_out, W_out = conv_result.shape
+            mask = conv_result >= threshold
+            if mask.sum().item() > 0:
+                positions = torch.nonzero(mask, as_tuple=False)
+                values = conv_result[mask]
 
-                for h in range(H_out):
-                    for w in range(W_out):
-                        value = conv_result[0, 0, h, w].item()
-                        x = h - chunk_radius + 7
-                        z = w - chunk_radius + 7
-                        message = f"史莱姆区块数: {value:.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
-                        log_and_print(message)
+                for pos, value in zip(positions, values):
+                    h, w = pos[-2:].tolist()
+                    x = h - chunk_radius + 7
+                    z = w - chunk_radius + 7
+                    message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
+                    log_and_print(message)
             else:
                 logging.debug(
                     f"This World isn't have exceed the threshold value: seed = {seed}"

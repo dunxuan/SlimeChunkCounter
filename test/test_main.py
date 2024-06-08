@@ -1,5 +1,4 @@
 from unittest.mock import patch
-import numpy as np
 
 
 def test_is_slime_chunk():
@@ -79,9 +78,10 @@ def test_generate_seeds():
 
 
 def test_detect_slime_chunk():
-    from src.main import detect_slime_chunk
+    import torch
+    from src.main import detect_slime_chunk, device
 
-    real_detected_chunks = np.zeros((5, 5), dtype=bool)
+    real_detected_chunks = torch.zeros((5, 5), dtype=torch.bool, device=device)
     real_detected_chunks[0, 2] = True
     real_detected_chunks[4, 4] = True
 
@@ -93,7 +93,7 @@ def test_detect_slime_chunk():
     print("Expected Chunks:")
     print(real_detected_chunks)
 
-    assert np.array_equal(detected_chunks, real_detected_chunks)
+    assert torch.equal(detected_chunks, real_detected_chunks)
 
 
 @patch("random.randint")
