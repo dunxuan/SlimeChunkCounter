@@ -32,7 +32,7 @@ PATTERN = torch.tensor([
     [False, False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False],
     [False, False,  False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False,  False],
     [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False]
-], dtype=torch.bool,device=device)
+], dtype=torch.bool, device=device)
 # fmt: on
 
 
@@ -63,7 +63,7 @@ def get_mode():
     """
     mode = (
         input(
-            f"运行模式, 计算所有种子(multiple seeds)或单个种子(singel seed) ([{DEFAULT_MODE}]ultiple seeds/种子值):"
+            f"运行模式, 计算所有种子(multiple seeds)或单个种子(single seed) ([{DEFAULT_MODE}]ultiple seeds/种子值):"
         )
         .strip()
         .upper()
@@ -221,7 +221,7 @@ def main():
     # 获取运行模式，并记录日志
     mode = get_mode()
     log_and_print(
-        f"mode or singel seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}"
+        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}"
     )
 
     # 获取检测半径, 并记录日志
