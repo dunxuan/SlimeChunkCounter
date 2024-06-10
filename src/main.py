@@ -44,6 +44,7 @@ def init_logging():
         filename=f"log/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log",
         level=LOG_LEVEL,
         format="%(asctime)s - %(levelname)s:\t\t\t%(message)s",
+        encoding="UTF-8",
     )
 
 
@@ -161,6 +162,7 @@ def detect_slime_chunk(seed, chunk_radius):
 
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)
+
     return chunks
 
 
@@ -214,6 +216,7 @@ def run(mode, radius, threshold, device=device):
 
         except KeyboardInterrupt:
             log_and_print("检测到用户中断 (Ctrl+C)，程序终止。")
+            exit(0)
 
 
 def main():
