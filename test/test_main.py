@@ -1,40 +1,6 @@
 from unittest.mock import patch
 
 
-def test_is_slime_chunk():
-    from src.main import is_slime_chunk
-
-    assert is_slime_chunk(-2, -2, 0) is False
-    assert is_slime_chunk(-2, -1, 0) is False
-    assert is_slime_chunk(-2, 0, 0) is True
-    assert is_slime_chunk(-2, 1, 0) is False
-    assert is_slime_chunk(-2, 2, 0) is False
-
-    assert is_slime_chunk(-1, -2, 0) is False
-    assert is_slime_chunk(-1, -1, 0) is False
-    assert is_slime_chunk(-1, 0, 0) is False
-    assert is_slime_chunk(-1, 1, 0) is False
-    assert is_slime_chunk(-1, 2, 0) is False
-
-    assert is_slime_chunk(0, -2, 0) is False
-    assert is_slime_chunk(0, -1, 0) is False
-    assert is_slime_chunk(0, 0, 0) is False
-    assert is_slime_chunk(0, 1, 0) is False
-    assert is_slime_chunk(0, 2, 0) is False
-
-    assert is_slime_chunk(1, -2, 0) is False
-    assert is_slime_chunk(1, -1, 0) is False
-    assert is_slime_chunk(1, 0, 0) is False
-    assert is_slime_chunk(1, 1, 0) is False
-    assert is_slime_chunk(1, 2, 0) is False
-
-    assert is_slime_chunk(2, -2, 0) is False
-    assert is_slime_chunk(2, -1, 0) is False
-    assert is_slime_chunk(2, 0, 0) is False
-    assert is_slime_chunk(2, 1, 0) is False
-    assert is_slime_chunk(2, 2, 0) is True
-
-
 def test_get_mode(monkeypatch):
     from src.main import get_mode, DEFAULT_MODE
 

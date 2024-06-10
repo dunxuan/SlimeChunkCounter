@@ -1,9 +1,7 @@
 from datetime import datetime
-from multiprocessing import Pool
 import random
 import logging
 import os
-from javarandom import Random
 import torch
 import torch.nn.functional as F
 
@@ -93,27 +91,6 @@ def get_threshold():
     return int(threshold) if threshold else DEFAULT_THRESHOLD
 
 
-def is_slime_chunk(chunkX, chunkZ, worldSeed):
-    """
-    判断该区块是否是史莱姆区块
-
-    Args:
-        chunkX (np.int64): 区块X坐标
-        chunkZ (np.int64): 区块Z坐标
-        worldSeed (np.int64): 世界种子
-
-    Returns:
-        bool: 是否是史莱姆区块
-    """
-    seed = (
-        worldSeed
-        + chunkX * (chunkX * 4987142 + 5947611)
-        + chunkZ * (chunkZ * 4392871 + 389711)
-        ^ 987234911
-    )
-    return Random(seed).nextInt(10) == 0
-
-
 def generate_seeds(mode):
     """
     生成由模式控制的种子, 如果是multiple seeds模式(str)则随机生成, 否则使用模式指定的种子(种子值)
@@ -143,22 +120,47 @@ def detect_slime_chunk(seed, chunk_radius):
         torch.Tensor: 检测完成的区块表
     """
     x_coords, y_coords = torch.meshgrid(
-        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64),
-        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64),
+        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
+        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
         indexing="ij",
     )
 
-    params = [
-        (x.item(), y.item(), seed)
-        for x, y in zip(x_coords.flatten(), y_coords.flatten())
-    ]
+    chunkX = x_coords.flatten()
+    chunkZ = y_coords.flatten()
 
-    with Pool() as pool:
-        results = pool.starmap(is_slime_chunk, params)
+    worldSeed = torch.tensor(seed, dtype=torch.int64, device=device)
 
-    chunks = torch.tensor(results, dtype=torch.bool, device=device).reshape(
-        x_coords.shape
+    seeds = (
+        worldSeed
+        + chunkX * (chunkX * 4987142 + 5947611)
+        + chunkZ * (chunkZ * 4392871 + 389711)
+        ^ 987234911
     )
+
+    def next_int(seeds):
+        seeds = (seeds ^ 0x5DEECE66D) & ((1 << 48) - 1)
+
+        def next():
+            nonlocal seeds
+            seeds = (seeds * 0x5DEECE66D + 0xB) & ((1 << 48) - 1)
+            retval = seeds >> 17
+
+            retval = retval.to(dtype=torch.int32)
+            retval = torch.where(
+                (retval & (1 << 31)).bool(), retval - (1 << 32), retval
+            )
+            return retval
+
+        bits = next()
+        val = bits % 10
+        while torch.any((bits - val) < -9):
+            bits = next()
+            val = bits % 10
+
+        return val
+
+    is_slime_chunk_results = next_int(seeds) % 10 == 0
+    chunks = is_slime_chunk_results.reshape(x_coords.shape)
     return chunks
 
 
