@@ -211,7 +211,7 @@ def run(mode, radius, threshold, device=device):
                     f"This World isn't have exceed the threshold value: seed = {seed}"
                 )
 
-            if DEBUG or mode != DEFAULT_MODE:
+            if mode != DEFAULT_MODE:
                 break
 
         except KeyboardInterrupt:
