@@ -43,7 +43,7 @@ def init_logging():
     logging.basicConfig(
         filename=f"log/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log",
         level=LOG_LEVEL,
-        format="%(asctime)s - %(levelname)s:\t\t\t%(message)s",
+        format="%(asctime)s - %(levelname)s:\t\t%(message)s",
         encoding="UTF-8",
     )
 
