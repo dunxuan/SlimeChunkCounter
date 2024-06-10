@@ -8,7 +8,7 @@ import torch.nn.functional as F
 DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
 DEFAULT_MODE = "M"
-DEFAULT_RADIUS = 16000
+DEFAULT_RADIUS = 8000
 DEFAULT_THRESHOLD = 50
 CHUNK_SIZE = 16
 SPAWN_RADIUS = 7
