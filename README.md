@@ -14,11 +14,11 @@ cd SlimeChunkCounter
 
 ```shell
 conda env create -f environment.yml --prefix "./.conda"
-conda activate ./.conda
 ```
 
 3. Run Code
 
 ```shell
+conda activate ./.conda
 .conda/python run.py
 ```
