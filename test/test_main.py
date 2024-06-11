@@ -1,33 +1,27 @@
 from unittest.mock import patch
 
 
-def test_get_mode(monkeypatch):
-    from src.main import get_mode, DEFAULT_MODE
+def test_get_user_inputs(monkeypatch):
+    from src.main import (
+        get_user_inputs,
+        DEFAULT_MODE,
+        DEFAULT_RADIUS,
+        DEFAULT_THRESHOLD,
+    )
 
-    monkeypatch.setattr("builtins.input", lambda _: "10000")
-    assert get_mode() == 10000
-    monkeypatch.setattr("builtins.input", lambda _: "m")
-    assert get_mode() == DEFAULT_MODE
-    monkeypatch.setattr("builtins.input", lambda _: "")
-    assert get_mode() == DEFAULT_MODE
+    def mock_inputs(inputs):
+        inputs_iter = iter(inputs)
+        monkeypatch.setattr("builtins.input", lambda _: next(inputs_iter))
 
+    test_cases = [
+        (["10000", "10000", "100"], (10000, 10000, 100)),
+        (["m", "16000", "50"], (DEFAULT_MODE, 16000, 50)),
+        (["", "", ""], (DEFAULT_MODE, DEFAULT_RADIUS, DEFAULT_THRESHOLD)),
+    ]
 
-def test_get_radius(monkeypatch):
-    from src.main import get_radius, DEFAULT_RADIUS
-
-    monkeypatch.setattr("builtins.input", lambda _: "10000")
-    assert get_radius() == 10000
-    monkeypatch.setattr("builtins.input", lambda _: "")
-    assert get_radius() == DEFAULT_RADIUS
-
-
-def test_get_threshold(monkeypatch):
-    from src.main import get_threshold, DEFAULT_THRESHOLD
-
-    monkeypatch.setattr("builtins.input", lambda _: "100")
-    assert get_threshold() == 100
-    monkeypatch.setattr("builtins.input", lambda _: "")
-    assert get_threshold() == DEFAULT_THRESHOLD
+    for inputs, expected_output in test_cases:
+        mock_inputs(inputs)
+        assert get_user_inputs() == expected_output
 
 
 def test_generate_seeds():

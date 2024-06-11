@@ -38,8 +38,7 @@ def init_logging():
     """
     初始化日志设置及目录
     """
-    if not os.path.exists("log"):
-        os.mkdir("log")
+    os.makedirs("log", exist_ok=True)
     logging.basicConfig(
         filename=f"log/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.log",
         level=LOG_LEVEL,
@@ -53,12 +52,12 @@ def log_and_print(message):
     logging.info(message)
 
 
-def get_mode():
+def get_user_inputs():
     """
-    用户输入运行模式, 是只计算单个种子还是随机种子循环运行
+    获取用户输入的运行模式, 检测半径和计数阈值
 
     Returns:
-        str or int: 模式
+        tuple: 模式, 检测半径, 计数阈值
     """
     mode = (
         input(
@@ -67,29 +66,15 @@ def get_mode():
         .strip()
         .upper()
     )
-    return DEFAULT_MODE if not mode or mode.startswith(DEFAULT_MODE) else int(mode)
+    mode = DEFAULT_MODE if not mode or mode.startswith(DEFAULT_MODE) else int(mode)
 
-
-def get_radius():
-    """
-    用户输入主世界检测范围的半径, 以挂机点为准
-
-    Returns:
-        int: 检测半径, 默认为DEFAULT_RADIUS
-    """
     radius = input(f"检测半径 [{DEFAULT_RADIUS}]:")
-    return int(radius) if radius else DEFAULT_RADIUS
+    radius = int(radius) if radius else DEFAULT_RADIUS
 
-
-def get_threshold():
-    """
-    用户输入刷怪范围内史莱姆区块阈值, 阈值及其以上保留
-
-    Returns:
-        int: 计数阈值, 默认为DEFAULT_THRESHOLD
-    """
     threshold = input(f"计数阈值 [{DEFAULT_THRESHOLD}]:")
-    return int(threshold) if threshold else DEFAULT_THRESHOLD
+    threshold = int(threshold) if threshold else DEFAULT_THRESHOLD
+
+    return mode, radius, threshold
 
 
 def generate_seeds(mode):
@@ -102,11 +87,39 @@ def generate_seeds(mode):
     Yields:
         int: 种子值
     """
-    if mode == DEFAULT_MODE:
-        while True:
-            yield random.randint(-(2**32), 2**32 - 1)
-    else:
-        yield mode
+    while mode == DEFAULT_MODE:
+        yield random.randint(-(2**32), 2**32 - 1)
+    yield mode
+
+
+def next_int(seeds):
+    """
+    生成下一个随机整数
+
+    Args:
+        seeds (torch.Tensor): 种子张量
+
+    Returns:
+        torch.Tensor: 随机整数张量
+    """
+    seeds = (seeds ^ 0x5DEECE66D) & ((1 << 48) - 1)
+
+    def next():
+        nonlocal seeds
+        seeds = (seeds * 0x5DEECE66D + 0xB) & ((1 << 48) - 1)
+        retval = seeds >> 17
+
+        retval = retval.to(dtype=torch.int32)
+        retval = torch.where((retval & (1 << 31)).bool(), retval - (1 << 32), retval)
+        return retval
+
+    bits = next()
+    val = bits % 10
+    while torch.any((bits - val) < -9):
+        bits = next()
+        val = bits % 10
+
+    return val
 
 
 def detect_slime_chunk(seed, chunk_radius):
@@ -138,28 +151,6 @@ def detect_slime_chunk(seed, chunk_radius):
         ^ 987234911
     )
 
-    def next_int(seeds):
-        seeds = (seeds ^ 0x5DEECE66D) & ((1 << 48) - 1)
-
-        def next():
-            nonlocal seeds
-            seeds = (seeds * 0x5DEECE66D + 0xB) & ((1 << 48) - 1)
-            retval = seeds >> 17
-
-            retval = retval.to(dtype=torch.int32)
-            retval = torch.where(
-                (retval & (1 << 31)).bool(), retval - (1 << 32), retval
-            )
-            return retval
-
-        bits = next()
-        val = bits % 10
-        while torch.any((bits - val) < -9):
-            bits = next()
-            val = bits % 10
-
-        return val
-
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)
 
@@ -168,7 +159,7 @@ def detect_slime_chunk(seed, chunk_radius):
 
 def run(mode, radius, threshold, device=device):
     """
-    循环获取随机世界种子, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
+    循环获取随机世界种子或使用用户给定种子值, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
 
     Args:
         mode (str or int): 运行模式值
@@ -220,27 +211,15 @@ def run(mode, radius, threshold, device=device):
 
 
 def main():
-    # 初始化日志设置
     init_logging()
 
-    # 获取运行模式，并记录日志
-    mode = get_mode()
+    mode, radius, threshold = get_user_inputs()
     log_and_print(
-        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}"
+        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\nradius = {radius}\nthreshold = {threshold}"
     )
 
-    # 获取检测半径, 并记录日志
-    radius = get_radius()
-    log_and_print(f"radius = {radius}")
-
-    # 获取计数阈值, 并记录日志
-    threshold = get_threshold()
-    log_and_print(f"threshold = {threshold}")
-
-    # 记录使用设备日志, CPU还是CUDA
     log_and_print(f"Torch use device: {device}")
 
-    # 开始运行
     run(mode, radius, threshold, device=device)
 
 
