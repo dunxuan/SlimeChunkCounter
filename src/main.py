@@ -122,7 +122,7 @@ def next_int(seeds):
     return val
 
 
-def detect_slime_chunk(seed, chunk_radius):
+def detect_slime_chunk(seed, chunk_radius, device=device):
     """
     获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表
 
@@ -133,14 +133,14 @@ def detect_slime_chunk(seed, chunk_radius):
     Returns:
         torch.Tensor: 检测完成的区块表
     """
-    x_coords, y_coords = torch.meshgrid(
+    x_coords, z_coords = torch.meshgrid(
         torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
         torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
         indexing="ij",
     )
 
     chunkX = x_coords.flatten()
-    chunkZ = y_coords.flatten()
+    chunkZ = z_coords.flatten()
 
     worldSeed = torch.tensor(seed, dtype=torch.int64, device=device)
 
