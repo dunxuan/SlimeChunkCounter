@@ -12,7 +12,7 @@ radius = int(radius_input) if radius_input else DEFAULT_RADIUS
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-detected_chunks = detect_slime_chunk(seed, radius, device=device).t()
+detected_chunks = detect_slime_chunk(seed, radius, device=device)
 
 detected_chunks_numpy = detected_chunks.cpu().numpy()
 

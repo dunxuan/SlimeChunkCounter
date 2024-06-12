@@ -154,7 +154,7 @@ def detect_slime_chunk(seed, chunk_radius, device=device):
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)
 
-    return chunks
+    return chunks.t()
 
 
 def run(mode, radius, threshold, device=device):
