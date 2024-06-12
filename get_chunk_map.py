@@ -3,14 +3,12 @@ import matplotlib.pyplot as plt
 from src.main import detect_slime_chunk
 import matplotlib.ticker as ticker
 
-DEFAULT_RADIUS = 10
+DEFAULT_RADIUS = 500
 
-# seed = int(input("种子 (-2^32 ~ 2^32 - 1):"))
-seed = 0
+seed = int(input("种子 (-2^32 ~ 2^32 - 1):"))
 
-# radius_input = input(f"检测半径 [{DEFAULT_RADIUS}]:")
-# radius = int(radius_input) if radius_input else DEFAULT_RADIUS
-radius = 10
+radius_input = input(f"区块检测半径 [{DEFAULT_RADIUS}]:")
+radius = int(radius_input) if radius_input else DEFAULT_RADIUS
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -34,11 +32,7 @@ plt.grid(True)
 plt.axhline(-0.5, color="black", linewidth=0.5)
 plt.axvline(-0.5, color="black", linewidth=0.5)
 
-# 刻度
-plt.gca().set_xticks([x - 0.5 for x in range(-radius, radius + 2)])
-plt.gca().set_yticks([y - 0.5 for y in range(-radius, radius + 2)])
-
-# 坐标值格式
+# 刻度值格式
 plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter("%.0f"))
 plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter("%.0f"))
 
