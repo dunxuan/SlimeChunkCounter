@@ -30,7 +30,7 @@ def test_generate_seeds():
     for _ in range(100):
         seed_generator = generate_seeds(DEFAULT_MODE)
         seed = next(seed_generator)
-        assert -(2**64) <= seed <= 2**64 - 1
+        assert -(2**63) <= seed <= 2**63 - 1
 
     seed_generator = generate_seeds(0)
     seed = next(seed_generator)

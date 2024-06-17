@@ -87,11 +87,11 @@ def generate_seeds(mode):
         int: 种子值
     """
     while mode == DEFAULT_MODE:
-        yield torch.randint(-(2**64), 2**64 - 1, (1,), device=device).item()
+        yield torch.randint(-(2**63), 2**63 - 1, (1,), device=device).item()
     yield mode
 
 
-def get_random_seed(worldSeed, chunkX, chunkZ, device=torch.device("cpu")):
+def get_random_seed(worldSeed, chunkX, chunkZ, device=device):
     """
     通过世界种子和区块坐标计算随机数生成种子
 
