@@ -30,7 +30,7 @@ def test_generate_seeds():
     for _ in range(100):
         seed_generator = generate_seeds(DEFAULT_MODE)
         seed = next(seed_generator)
-        assert -(2**32) <= seed <= 2**32 - 1
+        assert -(2**64) <= seed <= 2**64 - 1
 
     seed_generator = generate_seeds(0)
     seed = next(seed_generator)
@@ -56,11 +56,41 @@ def test_detect_slime_chunk():
     assert torch.equal(detected_chunks, real_detected_chunks)
 
 
-@patch("random.randint")
+@patch("torch.randint")
 def test_run(mock_randint, capsys):
     from src.main import run
+    import torch
 
-    mock_randint.return_value = 0
+    mock_randint.return_value = torch.tensor([0])
     run(0, 0, 0)
     captured = capsys.readouterr()
     assert captured.out == "史莱姆区块数: 12, 种子: 0, 挂机点区块位置: (0, 0)\n"
+
+
+def test_is_slime_chunk():
+    from src.main import next_int, get_random_seed, device
+    import torch
+
+    def is_slime_chunk(worldSeed, chunkX, chunkZ, device=device):
+        """
+        检测具体某个区块是否是史莱姆区块
+
+        Args:
+            seed (int): 世界种子
+            chunkX (int): 区块的 X 坐标
+            chunkZ (int): 区块的 Z 坐标
+            device (torch.device): 运算设备
+
+        Returns:
+            bool: 如果是史莱姆区块则返回 True, 否则返回 False
+        """
+        worldSeed = torch.tensor(worldSeed, dtype=torch.int64, device=device)
+        chunkX = torch.tensor(chunkX, dtype=torch.int32, device=device)
+        chunkZ = torch.tensor(chunkZ, dtype=torch.int32, device=device)
+
+        seeds = get_random_seed(worldSeed, chunkX, chunkZ, device=device)
+        is_slime_chunk_results = next_int(seeds) % 10 == 0
+
+        return is_slime_chunk_results.item()
+
+    assert is_slime_chunk(0, -50, -50) is False

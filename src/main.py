@@ -1,5 +1,4 @@
 from datetime import datetime
-import random
 import logging
 import os
 import torch
@@ -88,8 +87,37 @@ def generate_seeds(mode):
         int: 种子值
     """
     while mode == DEFAULT_MODE:
-        yield random.randint(-(2**32), 2**32 - 1)
+        yield torch.randint(-(2**64), 2**64 - 1, (1,), device=device).item()
     yield mode
+
+
+def get_random_seed(worldSeed, chunkX, chunkZ, device=torch.device("cpu")):
+    """
+    通过世界种子和区块坐标计算随机数生成种子
+
+    Args:
+        worldSeed (torch.int64): 世界种子
+        chunkX (torch.int32): 区块X坐标
+        chunkZ (torch.int32): 区块Z坐标
+        device (torch.device): 计算设备
+
+    Returns:
+        torch.int64: 随机数种子
+    """
+    v1 = torch.tensor(4987142, dtype=torch.int32, device=device)
+    v2 = torch.tensor(5947611, dtype=torch.int32, device=device)
+    v3 = torch.tensor(4392871, dtype=torch.int64, device=device)
+    v4 = torch.tensor(389711, dtype=torch.int32, device=device)
+    scrambler = torch.tensor(987234911, dtype=torch.int64, device=device)
+
+    return (
+        worldSeed
+        + (chunkX * chunkX * v1).to(dtype=torch.int64)
+        + (chunkX * v2).to(dtype=torch.int64)
+        + (chunkZ * chunkZ).to(dtype=torch.int64) * v3
+        + (chunkZ * v4).to(dtype=torch.int64)
+        ^ scrambler
+    )
 
 
 def next_int(seeds):
@@ -113,11 +141,11 @@ def next_int(seeds):
         retval = torch.where((retval & (1 << 31)).bool(), retval - (1 << 32), retval)
         return retval
 
-    bits = next()
-    val = bits % 10
-    while torch.any((bits - val) < -9):
+    while True:
         bits = next()
         val = bits % 10
+        if torch.any((bits - val) >= -9):
+            break
 
     return val
 
@@ -129,32 +157,26 @@ def detect_slime_chunk(seed, chunk_radius, device=device):
     Args:
         seed (int): 世界种子
         chunk_radius (int): 检测半径（区块）
+        device (torch.device): 运算设备
 
     Returns:
         torch.Tensor: 检测完成的区块表
     """
-    x_coords, z_coords = torch.meshgrid(
-        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
-        torch.arange(-chunk_radius, chunk_radius + 1, dtype=torch.int64, device=device),
-        indexing="ij",
+    chunk_range = torch.arange(
+        -chunk_radius, chunk_radius + 1, dtype=torch.int32, device=device
     )
+    x_coords, z_coords = torch.meshgrid(chunk_range, chunk_range, indexing="xy")
 
     chunkX = x_coords.flatten()
     chunkZ = z_coords.flatten()
 
     worldSeed = torch.tensor(seed, dtype=torch.int64, device=device)
-
-    seeds = (
-        worldSeed
-        + chunkX * (chunkX * 4987142 + 5947611)
-        + chunkZ * (chunkZ * 4392871 + 389711)
-        ^ 987234911
-    )
+    seeds = get_random_seed(worldSeed, chunkX, chunkZ, device=device)
 
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)
 
-    return chunks.t()
+    return chunks
 
 
 def run(mode, radius, threshold, device=device):
@@ -193,8 +215,8 @@ def run(mode, radius, threshold, device=device):
 
                 for pos, value in zip(positions, values):
                     h, w = pos[-2:].tolist()
-                    x = w - chunk_radius + 7
-                    z = h - chunk_radius + 7
+                    x = h - chunk_radius + 7
+                    z = w - chunk_radius + 7
                     message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
                     log_and_print(message)
             else:

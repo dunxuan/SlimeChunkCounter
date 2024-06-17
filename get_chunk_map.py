@@ -5,20 +5,20 @@ import matplotlib.ticker as ticker
 
 DEFAULT_RADIUS = 500
 
-seed = int(input("种子 (-2^32 ~ 2^32 - 1):"))
-
+# 输入种子和半径
+seed = int(input("种子 (-2^64 ~ 2^64 - 1):"))
 radius_input = input(f"区块检测半径 [{DEFAULT_RADIUS}]:")
 radius = int(radius_input) if radius_input else DEFAULT_RADIUS
 
+# 计算区块
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 detected_chunks = detect_slime_chunk(seed, radius, device=device)
-
 detected_chunks_numpy = detected_chunks.cpu().numpy()
 
 plt.imshow(
     detected_chunks_numpy,
     cmap="Greens",
+    interpolation="none",
     extent=(
         -radius - 0.5,
         radius + 0.5,
