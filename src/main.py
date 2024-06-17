@@ -31,6 +31,12 @@ PATTERN = torch.tensor([
     [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False]
 ], dtype=torch.bool, device=device)
 # fmt: on
+# get_random_seed的变量
+v1 = torch.tensor(4987142, dtype=torch.int32, device=device)
+v2 = torch.tensor(5947611, dtype=torch.int32, device=device)
+v3 = torch.tensor(4392871, dtype=torch.int64, device=device)
+v4 = torch.tensor(389711, dtype=torch.int32, device=device)
+scrambler = torch.tensor(987234911, dtype=torch.int64, device=device)
 
 
 def init_logging():
@@ -104,12 +110,6 @@ def get_random_seed(worldSeed, chunkX, chunkZ, device=device):
     Returns:
         torch.int64: 随机数种子
     """
-    v1 = torch.tensor(4987142, dtype=torch.int32, device=device)
-    v2 = torch.tensor(5947611, dtype=torch.int32, device=device)
-    v3 = torch.tensor(4392871, dtype=torch.int64, device=device)
-    v4 = torch.tensor(389711, dtype=torch.int32, device=device)
-    scrambler = torch.tensor(987234911, dtype=torch.int64, device=device)
-
     return (
         worldSeed
         + (chunkX * chunkX * v1).to(dtype=torch.int64)
