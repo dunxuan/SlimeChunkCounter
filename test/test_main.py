@@ -42,7 +42,7 @@ def test_detect_slime_chunk():
     from src.main import detect_slime_chunk, device
 
     real_detected_chunks = torch.zeros((5, 5), dtype=torch.bool, device=device)
-    real_detected_chunks[0, 2] = True
+    real_detected_chunks[2, 0] = True
     real_detected_chunks[4, 4] = True
 
     detected_chunks = detect_slime_chunk(0, 2)
