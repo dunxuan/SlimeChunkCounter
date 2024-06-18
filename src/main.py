@@ -96,7 +96,7 @@ def generate_seeds(mode):
         int: 种子值
     """
     while mode == DEFAULT_MODE:
-        yield torch.randint(-(2**63), 2**63 - 1, (1,), device=device).item()
+        yield torch.randint(-(2**63), 2**63 - 1, (1,), device=device)
     yield mode
 
 
@@ -157,7 +157,7 @@ def detect_slime_chunk(seed, chunk_radius, device=device):
     获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表
 
     Args:
-        seed (int): 世界种子
+        seed (torch.int64): 世界种子
         chunk_radius (int): 检测半径（区块）
         device (torch.device): 运算设备
 
@@ -172,8 +172,7 @@ def detect_slime_chunk(seed, chunk_radius, device=device):
     chunkX = x_coords.flatten()
     chunkZ = z_coords.flatten()
 
-    worldSeed = torch.tensor(seed, dtype=torch.int64, device=device)
-    seeds = get_random_seed(worldSeed, chunkX, chunkZ)
+    seeds = get_random_seed(seed, chunkX, chunkZ)
 
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)
