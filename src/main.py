@@ -234,7 +234,7 @@ def main():
 
     mode, radius, threshold = get_user_inputs()
     log_and_print(
-        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\n\t\t\t\t\t\t\t\t\tradius = {radius}\n\t\t\t\t\t\t\t\t\tthreshold = {threshold}"
+        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\nradius = {radius}\nthreshold = {threshold}"
     )
 
     log_and_print(f"Torch use device: {device}")
