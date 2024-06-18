@@ -21,5 +21,11 @@ conda env create -f environment.yml --prefix "./.conda"
 
 ```shell
 conda activate ./.conda
-.conda/python run.py
+python run.py
+```
+
+## Draw a map of a seed
+
+```shell
+python get_chunk_map.py
 ```
