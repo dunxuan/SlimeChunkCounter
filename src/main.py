@@ -3,6 +3,7 @@ import logging
 import os
 import torch
 import torch.nn.functional as F
+import concurrent.futures
 
 DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
@@ -137,7 +138,10 @@ def next_int(seed):
     def next():
         nonlocal seed
         seed = (seed * multiplier + addend) & mask
-        return (seed >> 17).to(dtype=torch.int32)
+        seed = seed >> 17
+        seed.to(dtype=torch.int32)
+        seed = torch.where((seed & (1 << 31)).bool(), seed - (1 << 32), seed)
+        return seed
 
     u = next()
     r = u % 10
@@ -145,7 +149,7 @@ def next_int(seed):
         u = next()
         r = u % 10
 
-    return r.to(dtype=torch.int32)
+    return r
 
 
 def detect_slime_chunk(seed, chunk_radius, device=device):
@@ -192,41 +196,39 @@ def run(mode, radius, threshold, device=device):
     pattern_tensor = PATTERN.float().unsqueeze(0).unsqueeze(0)
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
-    for seed in generate_seeds(mode):
-        try:
-            detected_chunks = detect_slime_chunk(seed, chunk_radius)
-            chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0)
+    def process_seed(seed):
+        detected_chunks = detect_slime_chunk(seed, chunk_radius)
+        chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0)
 
-            conv_result = F.conv2d(chunk_tensor, pattern_tensor)
+        conv_result = F.conv2d(chunk_tensor, pattern_tensor)
 
-            mask = conv_result >= threshold
-            if mask.any() > 0:
-                positions = torch.nonzero(mask, as_tuple=False)
-                values = conv_result[mask]
+        mask = conv_result >= threshold
+        if mask.any() > 0:
+            positions = torch.nonzero(mask, as_tuple=False)
+            values = conv_result[mask]
 
-                for pos, value in zip(positions, values):
-                    h, w = pos[-2:].tolist()
-                    x = h - chunk_radius + 7
-                    z = w - chunk_radius + 7
-                    message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
-                    log_and_print(message)
-            else:
-                logging.debug(
-                    f"This World isn't have exceed the threshold value: seed = {seed}"
-                )
+            for pos, value in zip(positions, values):
+                h, w = pos[-2:].tolist()
+                x = h - chunk_radius + 7
+                z = w - chunk_radius + 7
+                message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
+                log_and_print(message)
+        else:
+            logging.debug(
+                f"This World isn't have exceed the threshold value: seed = {seed}"
+            )
 
-            if DEBUG:
-                logging.debug(f"seed = {seed}")
-                logging.debug(f"detected_chunks = {detected_chunks}")
-                logging.debug(f"chunk_tensor = {chunk_tensor}")
-                logging.debug(f"conv_result= {conv_result}")
+        if DEBUG:
+            logging.debug(f"seed = {seed}")
+            logging.debug(f"detected_chunks = {detected_chunks}")
+            logging.debug(f"chunk_tensor = {chunk_tensor}")
+            logging.debug(f"conv_result= {conv_result}")
 
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_seed, seed) for seed in generate_seeds(mode)]
+        for future in concurrent.futures.as_completed(futures):
             if mode != DEFAULT_MODE:
                 break
-
-        except KeyboardInterrupt:
-            log_and_print("检测到用户中断 (Ctrl+C)，程序终止。")
-            exit(0)
 
 
 def main():
