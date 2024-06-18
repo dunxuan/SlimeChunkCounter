@@ -7,9 +7,8 @@ import torch.nn.functional as F
 DEBUG = False
 LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
 DEFAULT_MODE = "M"
-DEFAULT_RADIUS = 8000
+DEFAULT_RADIUS = 500
 DEFAULT_THRESHOLD = 50
-CHUNK_SIZE = 16
 SPAWN_RADIUS = 7
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # fmt: off
@@ -73,7 +72,7 @@ def get_user_inputs():
     )
     mode = DEFAULT_MODE if not mode or mode.startswith(DEFAULT_MODE) else int(mode)
 
-    radius = input(f"检测半径 [{DEFAULT_RADIUS}]:")
+    radius = input(f"区块检测半径 [{DEFAULT_RADIUS}]:")
     radius = int(radius) if radius else DEFAULT_RADIUS
 
     threshold = input(f"计数阈值 [{DEFAULT_THRESHOLD}]:")
@@ -189,10 +188,9 @@ def run(mode, radius, threshold, device=device):
         threshold (int): 计数阈值
         device (torch.device): 默认即可, 参数在此处作为调试使用
     """
-    afk_radius = radius // CHUNK_SIZE
-    chunk_radius = afk_radius + SPAWN_RADIUS
+    chunk_radius = radius + SPAWN_RADIUS
 
-    pattern_tensor = PATTERN.float().unsqueeze(0).unsqueeze(0).to(device)
+    pattern_tensor = PATTERN.float().unsqueeze(0).unsqueeze(0)
     logging.debug(f"pattern_tensor = {pattern_tensor}")
 
     for seed in generate_seeds(mode):
@@ -202,7 +200,7 @@ def run(mode, radius, threshold, device=device):
             detected_chunks = detect_slime_chunk(seed, chunk_radius)
             logging.debug(f"detected_chunks = {detected_chunks}")
 
-            chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0).to(device)
+            chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0)
             logging.debug(f"chunk_tensor = {chunk_tensor}")
 
             conv_result = F.conv2d(chunk_tensor, pattern_tensor)
