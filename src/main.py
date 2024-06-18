@@ -200,7 +200,7 @@ def run(mode, radius, threshold, device=device):
             conv_result = F.conv2d(chunk_tensor, pattern_tensor)
 
             mask = conv_result >= threshold
-            if mask.sum().item() > 0:
+            if mask.any() > 0:
                 positions = torch.nonzero(mask, as_tuple=False)
                 values = conv_result[mask]
 
