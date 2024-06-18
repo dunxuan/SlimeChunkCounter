@@ -141,7 +141,7 @@ def next_int(seed):
 
     u = next()
     r = u % 10
-    while torch.any(u - r + 9 < 0):
+    while torch.any(u - r < -9):
         u = next()
         r = u % 10
 
@@ -194,16 +194,10 @@ def run(mode, radius, threshold, device=device):
 
     for seed in generate_seeds(mode):
         try:
-            logging.debug(f"seed = {seed}")
-
             detected_chunks = detect_slime_chunk(seed, chunk_radius)
-            logging.debug(f"detected_chunks = {detected_chunks}")
-
             chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0)
-            logging.debug(f"chunk_tensor = {chunk_tensor}")
 
             conv_result = F.conv2d(chunk_tensor, pattern_tensor)
-            logging.debug(f"conv_result= {conv_result}")
 
             mask = conv_result >= threshold
             if mask.sum().item() > 0:
@@ -221,6 +215,12 @@ def run(mode, radius, threshold, device=device):
                     f"This World isn't have exceed the threshold value: seed = {seed}"
                 )
 
+            if DEBUG:
+                logging.debug(f"seed = {seed}")
+                logging.debug(f"detected_chunks = {detected_chunks}")
+                logging.debug(f"chunk_tensor = {chunk_tensor}")
+                logging.debug(f"conv_result= {conv_result}")
+
             if mode != DEFAULT_MODE:
                 break
 
@@ -234,7 +234,7 @@ def main():
 
     mode, radius, threshold = get_user_inputs()
     log_and_print(
-        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\nradius = {radius}\nthreshold = {threshold}"
+        f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\n\t\t\t\t\t\t\t\t\tradius = {radius}\n\t\t\t\t\t\t\t\t\tthreshold = {threshold}"
     )
 
     log_and_print(f"Torch use device: {device}")
