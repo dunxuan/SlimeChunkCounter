@@ -36,6 +36,9 @@ v2 = torch.tensor(5947611, dtype=torch.int32, device=device)
 v3 = torch.tensor(4392871, dtype=torch.int64, device=device)
 v4 = torch.tensor(389711, dtype=torch.int32, device=device)
 scrambler = torch.tensor(987234911, dtype=torch.int64, device=device)
+multiplier = torch.tensor(0x5DEECE66D, dtype=torch.int64, device=device)
+addend = torch.tensor(0xB, dtype=torch.int64, device=device)
+mask = torch.tensor((1 << 48) - 1, dtype=torch.int64, device=device)
 
 
 def init_logging():
@@ -119,34 +122,30 @@ def get_random_seed(worldSeed, chunkX, chunkZ):
     )
 
 
-def next_int(seeds):
+def next_int(seed):
     """
-    生成下一个随机整数
+    生成区块随机数
 
     Args:
-        seeds (torch.Tensor): 种子张量
+        seed (torch.int64): 种子张量
 
     Returns:
-        torch.Tensor: 随机整数张量
+        torch.int32: 随机整数张量
     """
-    seeds = (seeds ^ 0x5DEECE66D) & ((1 << 48) - 1)
+    seed = (seed ^ multiplier) & mask
 
     def next():
-        nonlocal seeds
-        seeds = (seeds * 0x5DEECE66D + 0xB) & ((1 << 48) - 1)
-        retval = seeds >> 17
+        nonlocal seed
+        seed = (seed * multiplier + addend) & mask
+        return (seed >> 17).to(dtype=torch.int32)
 
-        retval = retval.to(dtype=torch.int32)
-        retval = torch.where((retval & (1 << 31)).bool(), retval - (1 << 32), retval)
-        return retval
+    u = next()
+    r = u % 10
+    while torch.any(u - r + 9 < 0):
+        u = next()
+        r = u % 10
 
-    while True:
-        bits = next()
-        val = bits % 10
-        if torch.any((bits - val) >= -9):
-            break
-
-    return val
+    return r.to(dtype=torch.int32)
 
 
 def detect_slime_chunk(seed, chunk_radius, device=device):
