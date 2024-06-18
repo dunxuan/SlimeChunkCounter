@@ -6,7 +6,7 @@ import matplotlib.ticker as ticker
 DEFAULT_RADIUS = 500
 
 # 输入种子和半径
-seed = int(input("种子 (-2^64 ~ 2^64 - 1):"))
+seed = int(input("种子 (-2^63 ~ 2^63 - 1):"))
 radius_input = input(f"区块检测半径 [{DEFAULT_RADIUS}]:")
 radius = int(radius_input) if radius_input else DEFAULT_RADIUS
 
