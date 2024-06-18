@@ -97,7 +97,7 @@ def generate_seeds(mode):
     yield mode
 
 
-def get_random_seed(worldSeed, chunkX, chunkZ, device=device):
+def get_random_seed(worldSeed, chunkX, chunkZ):
     """
     通过世界种子和区块坐标计算随机数生成种子
 
@@ -171,7 +171,7 @@ def detect_slime_chunk(seed, chunk_radius, device=device):
     chunkZ = z_coords.flatten()
 
     worldSeed = torch.tensor(seed, dtype=torch.int64, device=device)
-    seeds = get_random_seed(worldSeed, chunkX, chunkZ, device=device)
+    seeds = get_random_seed(worldSeed, chunkX, chunkZ)
 
     is_slime_chunk_results = next_int(seeds) % 10 == 0
     chunks = is_slime_chunk_results.reshape(x_coords.shape)

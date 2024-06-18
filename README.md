@@ -1,5 +1,6 @@
 # Slime Chunk Counter
 
+Count the number of Slime blocks in a given area of Minecraft (find the largest slime farm possible)
 
 ## Usage
 

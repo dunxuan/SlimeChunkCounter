@@ -88,7 +88,7 @@ def test_is_slime_chunk():
         chunkX = torch.tensor(chunkX, dtype=torch.int32, device=device)
         chunkZ = torch.tensor(chunkZ, dtype=torch.int32, device=device)
 
-        seeds = get_random_seed(worldSeed, chunkX, chunkZ, device=device)
+        seeds = get_random_seed(worldSeed, chunkX, chunkZ)
         is_slime_chunk_results = next_int(seeds) % 10 == 0
 
         return is_slime_chunk_results.item()
