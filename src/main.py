@@ -212,7 +212,7 @@ def run(mode, radius, threshold, device=device):
                 z = w - chunk_radius + 7
                 message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
                 log_and_print(message)
-        else:
+        elif DEBUG:
             logging.debug(
                 f"This World isn't have exceed the threshold value: seed = {seed}"
             )
