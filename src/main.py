@@ -208,8 +208,8 @@ def run(mode, radius, threshold, device=device):
 
             for pos, value in zip(positions, values):
                 h, w = pos[-2:].tolist()
-                x = h - chunk_radius + 7
-                z = w - chunk_radius + 7
+                x = w - chunk_radius + 7
+                z = h - chunk_radius + 7
                 message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
                 log_and_print(message)
         elif DEBUG:
