@@ -97,7 +97,7 @@ def generate_seeds(mode):
     """
     while mode == DEFAULT_MODE:
         yield torch.randint(-(2**63), 2**63 - 1, (1,), device=device)
-    yield mode
+    yield torch.tensor(mode, dtype=torch.int64, device=device)
 
 
 def get_random_seed(worldSeed, chunkX, chunkZ):
@@ -201,7 +201,6 @@ def run(mode, radius, threshold, device=device):
 
         conv_result = F.conv2d(chunk_tensor, pattern_tensor)
 
-        seed = seed if isinstance(seed, int) else seed.item()
         mask = conv_result >= threshold
         if mask.any() > 0:
             positions = torch.nonzero(mask, as_tuple=False)
@@ -211,15 +210,15 @@ def run(mode, radius, threshold, device=device):
                 h, w = pos[-2:].tolist()
                 x = h - chunk_radius + 7
                 z = w - chunk_radius + 7
-                message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed}, 挂机点区块位置: ({x}, {z})"
+                message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
                 log_and_print(message)
         elif DEBUG:
             logging.debug(
-                f"This World isn't have exceed the threshold value: seed = {seed}"
+                f"This World isn't have exceed the threshold value: seed = {seed.item()}"
             )
 
         if DEBUG:
-            logging.debug(f"seed = {seed}")
+            logging.debug(f"seed = {seed.item()}")
             logging.debug(f"detected_chunks = {detected_chunks}")
             logging.debug(f"chunk_tensor = {chunk_tensor}")
             logging.debug(f"conv_result= {conv_result}")
