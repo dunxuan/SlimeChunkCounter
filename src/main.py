@@ -1,12 +1,10 @@
 from datetime import datetime
 import logging
 import os
-import threading
 import torch
 import torch.nn.functional as F
 import concurrent.futures
 from tqdm import tqdm
-import signal
 import sys
 
 LOG_LEVEL = logging.INFO
