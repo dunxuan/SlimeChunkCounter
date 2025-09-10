@@ -12,6 +12,7 @@ DEFAULT_MODE = "M"
 DEFAULT_RADIUS = 500
 DEFAULT_THRESHOLD = 50
 SPAWN_RADIUS = 7
+BLOCK_SIZE = 1024
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATTERN = (
     torch.tensor(
@@ -220,7 +221,7 @@ def next_int(seed: torch.Tensor) -> torch.Tensor:
 
 
 @torch.compiler.disable
-def detect_slime_chunk(seed, chunk_radius, block_size=1024):
+def detect_slime_chunk(seed, chunk_radius, block_size=BLOCK_SIZE):
     """
     分块计算史莱姆区块，带重叠，避免 OOM 且保证卷积结果正确
 
@@ -309,27 +310,34 @@ def run(mode, radius, threshold):
     chunk_radius = radius + SPAWN_RADIUS
     pattern_tensor = PATTERN.float()
 
-    # 单种子模式：同步执行，it/s = chunks/s
+    # 单种子模式：同步执行
     if mode != DEFAULT_MODE:
         for seed in generate_seeds(mode):
             try:
-                # 使用 tqdm 包装 detect_slime_chunk 的迭代器，只显示速率
-                for i, j, chunk_tensor in tqdm(
-                    detect_slime_chunk(seed, chunk_radius),
+                # 预计算总块数
+                total_chunks = (
+                    (2 * chunk_radius + 1 + BLOCK_SIZE - 1) // BLOCK_SIZE
+                ) ** 2
+
+                # 创建 tqdm 进度条，显示完整进度
+                with tqdm(
+                    total=total_chunks,
                     desc=f"Processing seed {seed.item()}",
                     dynamic_ncols=True,
-                    bar_format="{desc} | {rate_fmt}",
+                    bar_format="{desc} | {percentage:3.0f}% | {n_fmt}/{total_fmt} blocks | {rate_fmt} | ETA: {remaining}",
                     leave=True,
-                ):
-                    detect_and_log_matches(
-                        chunk_tensor,
-                        pattern_tensor,
-                        threshold,
-                        i,
-                        j,
-                        chunk_radius,
-                        seed,
-                    )
+                ) as pbar:
+                    for i, j, chunk_tensor in detect_slime_chunk(seed, chunk_radius):
+                        detect_and_log_matches(
+                            chunk_tensor,
+                            pattern_tensor,
+                            threshold,
+                            i,
+                            j,
+                            chunk_radius,
+                            seed,
+                        )
+                        pbar.update(1)  # 手动更新进度
             except Exception:
                 logging.exception("Error processing single seed")
         return
@@ -349,7 +357,7 @@ def run(mode, radius, threshold):
             finally:
                 pbar.update(1)  # 任务完成才更新，确保速率准确
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = []
             for seed in generate_seeds(mode):
                 future = executor.submit(wrapped_process_seed, seed)
