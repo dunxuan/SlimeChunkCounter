@@ -12,7 +12,7 @@ DEFAULT_MODE = "M"
 DEFAULT_RADIUS = 1024
 DEFAULT_THRESHOLD = 50
 SPAWN_RADIUS = 7
-BLOCK_SIZE = 1024
+BLOCK_SIZE = 2048
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATTERN = (
     torch.tensor(
@@ -134,64 +134,6 @@ def get_random_seed(worldSeed, chunkX, chunkZ):
     )
 
 
-# @torch.compiler.disable
-# def next_int(seed):
-#     """
-#     生成区块随机数
-
-#     Args:
-#         seed (torch.int64): 种子张量
-
-#     Returns:
-#         torch.int32: 随机整数张量
-#     """
-#     seed = (seed ^ multiplier) & mask
-
-#     def next():
-#         nonlocal seed
-#         seed = (seed * multiplier + addend) & mask
-#         seed = seed >> 17
-#         seed = seed.to(dtype=torch.int32)
-#         seed = torch.where((seed & (1 << 31)).bool(), seed - (1 << 32), seed)
-#         return seed
-
-#     u = next()
-#     r = u % 10
-#     while torch.any(u - r + 9 < 0):
-#         u = next()
-#         r = u % 10
-
-#     return r
-
-# @torch.compiler.disable
-# def next_int(seed: torch.Tensor) -> torch.Tensor:
-#     seed = (seed ^ multiplier) & mask
-
-#     def _next(s):
-#         s = (s * multiplier + addend) & mask
-#         s = s >> 17
-#         s = s.to(dtype=torch.int32)
-#         s = torch.where((s & (1 << 31)).bool(), s - (1 << 32), s)
-#         return s
-
-#     u = _next(seed)
-#     r = u % 10
-
-#     # 最多尝试 10 次（实际 Minecraft 几乎不会超过 3 次）
-#     for _ in range(10):
-#         invalid = u - r + 9 < 0
-#         if not invalid.any():
-#             break
-#         new_seed = (seed * multiplier + addend) & mask
-#         new_u = _next(new_seed)
-#         new_r = new_u % 10
-#         u = torch.where(invalid, new_u, u)
-#         r = torch.where(invalid, new_r, r)
-#         seed = torch.where(invalid, new_seed, seed)
-
-#     return r
-
-
 @torch.compiler.disable
 def next_int(seed: torch.Tensor) -> torch.Tensor:
     seed = (seed ^ multiplier) & mask
@@ -220,7 +162,6 @@ def next_int(seed: torch.Tensor) -> torch.Tensor:
     return r
 
 
-@torch.compiler.disable
 def detect_slime_chunk(seed, chunk_radius, device=device, block_size=BLOCK_SIZE):
     """
     分块计算史莱姆区块，带重叠，避免 OOM 且保证卷积结果正确
@@ -233,9 +174,7 @@ def detect_slime_chunk(seed, chunk_radius, device=device, block_size=BLOCK_SIZE)
     Yields:
         (x_offset, z_offset, chunk_tensor): 分块的史莱姆区块数据
     """
-    # PATTERN 的大小 15，用于确定边界重叠宽度
     overlap = 15 - 1
-
     coords = torch.arange(
         -chunk_radius, chunk_radius + 1, dtype=torch.int32, device=device
     )
@@ -250,13 +189,11 @@ def detect_slime_chunk(seed, chunk_radius, device=device, block_size=BLOCK_SIZE)
             is_slime_chunk_results = next_int(seeds) % 10 == 0
             chunks = is_slime_chunk_results.reshape(x_coords.shape)
 
-            # 返回 (i, j) 偏移 + 分块数据
-            yield i, j, chunks
+            yield x_block[0].item(), z_block[0].item(), chunks
 
 
-@torch.compiler.disable
 def detect_and_log_matches(
-    chunk_tensor, pattern_tensor, threshold, i, j, chunk_radius, seed
+    chunk_tensor, pattern_tensor, threshold, x_start, z_start, chunk_radius, seed
 ):
     """
     对输入的 chunk_tensor 进行卷积匹配，若匹配值 >= threshold，则打印匹配位置和数值。
@@ -270,10 +207,8 @@ def detect_and_log_matches(
         chunk_radius (int): 全局检测半径（用于坐标还原）
         seed (torch.Tensor): 当前世界种子（用于打印）
     """
-    chunk_tensor = chunk_tensor[None, None].float()  # [1, 1, H, W]
+    chunk_tensor = chunk_tensor[None, None].float()
     conv_result = F.conv2d(chunk_tensor, pattern_tensor)
-
-    # 去除卷积引入的边缘无效区域
     valid_result = conv_result[
         :, :, : -(PATTERN.shape[-2] - 1), : -(PATTERN.shape[-1] - 1)
     ]
@@ -284,10 +219,10 @@ def detect_and_log_matches(
         values = valid_result[mask]
         for pos, value in zip(positions, values):
             h, w = pos[-2:].tolist()
-            x = w + j - chunk_radius + SPAWN_RADIUS
-            z = h + i - chunk_radius + SPAWN_RADIUS
+            x = x_start + w + SPAWN_RADIUS
+            z = z_start + h + SPAWN_RADIUS
             log_and_print(
-                f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
+                f"\n史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
             )
 
 
@@ -298,9 +233,15 @@ def process_seed(seed, threshold, chunk_radius, pattern_tensor):
     else:
         seed = seed.to(device, dtype=torch.int64)
 
-    for i, j, chunk_tensor in detect_slime_chunk(seed, chunk_radius):
+    for x_start, z_start, chunk_tensor in detect_slime_chunk(seed, chunk_radius):
         detect_and_log_matches(
-            chunk_tensor, pattern_tensor, threshold, i, j, chunk_radius, seed
+            chunk_tensor,
+            pattern_tensor,
+            threshold,
+            x_start,
+            z_start,
+            chunk_radius,
+            seed,
         )
 
 
@@ -325,13 +266,15 @@ def run(mode, radius, threshold):
                     bar_format="{desc} | {percentage:3.0f}% | {n_fmt}/{total_fmt} blocks | {rate_fmt} | ETA: {remaining}",
                     leave=True,
                 ) as pbar:
-                    for i, j, chunk_tensor in detect_slime_chunk(seed, chunk_radius):
+                    for x_start, z_start, chunk_tensor in detect_slime_chunk(
+                        seed, chunk_radius
+                    ):
                         detect_and_log_matches(
                             chunk_tensor,
                             pattern_tensor,
                             threshold,
-                            i,
-                            j,
+                            x_start,
+                            z_start,
                             chunk_radius,
                             seed,
                         )
