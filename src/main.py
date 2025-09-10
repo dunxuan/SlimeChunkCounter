@@ -9,10 +9,10 @@ import sys
 
 LOG_LEVEL = logging.INFO
 DEFAULT_MODE = "M"
-DEFAULT_RADIUS = 500
+DEFAULT_RADIUS = 1024
 DEFAULT_THRESHOLD = 50
 SPAWN_RADIUS = 7
-BLOCK_SIZE = 1024
+BLOCK_SIZE = 102400
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATTERN = (
     torch.tensor(
@@ -221,7 +221,7 @@ def next_int(seed: torch.Tensor) -> torch.Tensor:
 
 
 @torch.compiler.disable
-def detect_slime_chunk(seed, chunk_radius, block_size=BLOCK_SIZE):
+def detect_slime_chunk(seed, chunk_radius, device=device, block_size=BLOCK_SIZE):
     """
     分块计算史莱姆区块，带重叠，避免 OOM 且保证卷积结果正确
 
@@ -233,8 +233,6 @@ def detect_slime_chunk(seed, chunk_radius, block_size=BLOCK_SIZE):
     Yields:
         (x_offset, z_offset, chunk_tensor): 分块的史莱姆区块数据
     """
-    device = seed.device
-
     # PATTERN 的大小 15，用于确定边界重叠宽度
     overlap = 15 - 1
 
