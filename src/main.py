@@ -12,8 +12,8 @@ DEFAULT_MODE = "M"
 DEFAULT_RADIUS = 1024
 DEFAULT_THRESHOLD = 50
 SPAWN_RADIUS = 7
-BLOCK_SIZE = 29000
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BLOCK_SIZE = int(torch.cuda.mem_get_info()[1] / 1024 / 1024 * 1.8)
 PATTERN = (
     torch.tensor(
         [
