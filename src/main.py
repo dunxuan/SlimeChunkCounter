@@ -1,36 +1,45 @@
 from datetime import datetime
 import logging
 import os
+import threading
 import torch
 import torch.nn.functional as F
 import concurrent.futures
+from tqdm import tqdm
+import signal
+import sys
 
-DEBUG = False
-LOG_LEVEL = logging.INFO if not DEBUG else logging.DEBUG
+LOG_LEVEL = logging.INFO
 DEFAULT_MODE = "M"
 DEFAULT_RADIUS = 500
 DEFAULT_THRESHOLD = 50
 SPAWN_RADIUS = 7
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# fmt: off
-PATTERN = torch.tensor([
-    [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False],
-    [False, False,  False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False,  False],
-    [False, False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False],
-    [False, True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False],
-    [False, True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False],
-    [True,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True],
-    [True,  True,   True,   True,   True,   True,   False,  False,  False,  True,   True,   True,   True,   True,   True],
-    [True,  True,   True,   True,   True,   True,   False,  False,  False,  True,   True,   True,   True,   True,   True],
-    [True,  True,   True,   True,   True,   True,   False,  False,  False,  True,   True,   True,   True,   True,   True],
-    [True,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True],
-    [False, True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False],
-    [False, True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False],
-    [False, False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False],
-    [False, False,  False,  True,   True,   True,   True,   True,   True,   True,   True,   True,   False,  False,  False],
-    [False, False,  False,  False,  False,  True,   True,   True,   True,   True,   False,  False,  False,  False,  False]
-], dtype=torch.bool, device=device)
-# fmt: on
+PATTERN = (
+    torch.tensor(
+        [
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+        ],
+        dtype=torch.float,
+        device=device,
+    )
+    .unsqueeze(0)
+    .unsqueeze(0)
+)
 # get_random_seed的变量
 v1 = torch.tensor(4987142, dtype=torch.int32, device=device)
 v2 = torch.tensor(5947611, dtype=torch.int32, device=device)
@@ -95,11 +104,14 @@ def generate_seeds(mode):
     Yields:
         int: 种子值
     """
-    while mode == DEFAULT_MODE:
-        yield torch.randint(-(2**63), 2**63 - 1, (1,), device=device)
-    yield torch.tensor(mode, dtype=torch.int64, device=device)
+    if mode == DEFAULT_MODE:
+        while True:
+            yield torch.randint(-(2**63), 2**63 - 1, (), device=device)
+    else:
+        yield torch.tensor(mode, dtype=torch.int64, device=device)
 
 
+@torch.compiler.disable
 def get_random_seed(worldSeed, chunkX, chunkZ):
     """
     通过世界种子和区块坐标计算随机数生成种子
@@ -123,124 +135,260 @@ def get_random_seed(worldSeed, chunkX, chunkZ):
     )
 
 
-def next_int(seed):
-    """
-    生成区块随机数
+# @torch.compiler.disable
+# def next_int(seed):
+#     """
+#     生成区块随机数
 
-    Args:
-        seed (torch.int64): 种子张量
+#     Args:
+#         seed (torch.int64): 种子张量
 
-    Returns:
-        torch.int32: 随机整数张量
-    """
+#     Returns:
+#         torch.int32: 随机整数张量
+#     """
+#     seed = (seed ^ multiplier) & mask
+
+#     def next():
+#         nonlocal seed
+#         seed = (seed * multiplier + addend) & mask
+#         seed = seed >> 17
+#         seed = seed.to(dtype=torch.int32)
+#         seed = torch.where((seed & (1 << 31)).bool(), seed - (1 << 32), seed)
+#         return seed
+
+#     u = next()
+#     r = u % 10
+#     while torch.any(u - r + 9 < 0):
+#         u = next()
+#         r = u % 10
+
+#     return r
+
+# @torch.compiler.disable
+# def next_int(seed: torch.Tensor) -> torch.Tensor:
+#     seed = (seed ^ multiplier) & mask
+
+#     def _next(s):
+#         s = (s * multiplier + addend) & mask
+#         s = s >> 17
+#         s = s.to(dtype=torch.int32)
+#         s = torch.where((s & (1 << 31)).bool(), s - (1 << 32), s)
+#         return s
+
+#     u = _next(seed)
+#     r = u % 10
+
+#     # 最多尝试 10 次（实际 Minecraft 几乎不会超过 3 次）
+#     for _ in range(10):
+#         invalid = u - r + 9 < 0
+#         if not invalid.any():
+#             break
+#         new_seed = (seed * multiplier + addend) & mask
+#         new_u = _next(new_seed)
+#         new_r = new_u % 10
+#         u = torch.where(invalid, new_u, u)
+#         r = torch.where(invalid, new_r, r)
+#         seed = torch.where(invalid, new_seed, seed)
+
+#     return r
+
+
+@torch.compiler.disable
+def next_int(seed: torch.Tensor) -> torch.Tensor:
     seed = (seed ^ multiplier) & mask
 
-    def next():
-        nonlocal seed
-        seed = (seed * multiplier + addend) & mask
-        seed = seed >> 17
-        seed.to(dtype=torch.int32)
-        seed = torch.where((seed & (1 << 31)).bool(), seed - (1 << 32), seed)
-        return seed
+    def _next(s):
+        s = (s * multiplier + addend) & mask
+        s = s >> 17
+        s = s.to(dtype=torch.int32)
+        s = torch.where((s & (1 << 31)).bool(), s - (1 << 32), s)
+        return s
 
-    u = next()
+    u = _next(seed)
     r = u % 10
-    while torch.any(u - r < -9):
-        u = next()
-        r = u % 10
+
+    attempts = 0
+    max_attempts = 10
+    while (invalid := u - r + 9 < 0).any() and attempts < max_attempts:
+        new_seed = (seed * multiplier + addend) & mask
+        new_u = _next(new_seed)
+        new_r = new_u % 10
+        u = torch.where(invalid, new_u, u)
+        r = torch.where(invalid, new_r, r)
+        seed = torch.where(invalid, new_seed, seed)
+        attempts += 1
 
     return r
 
 
-def detect_slime_chunk(seed, chunk_radius, device=device):
+@torch.compiler.disable
+def detect_slime_chunk(seed, chunk_radius, block_size=1024):
     """
-    获取用 seed 生成的世界的在 chunk_radius 半径范围内的区块表
+    分块计算史莱姆区块，带重叠，避免 OOM 且保证卷积结果正确
 
     Args:
         seed (torch.int64): 世界种子
-        chunk_radius (int): 检测半径（区块）
-        device (torch.device): 运算设备
+        chunk_radius (int): 检测半径
+        block_size (int): 每个分块的有效大小
 
-    Returns:
-        torch.Tensor: 检测完成的区块表
+    Yields:
+        (x_offset, z_offset, chunk_tensor): 分块的史莱姆区块数据
     """
-    chunk_range = torch.arange(
+    device = seed.device
+
+    # PATTERN 的大小 15，用于确定边界重叠宽度
+    overlap = 15 - 1
+
+    coords = torch.arange(
         -chunk_radius, chunk_radius + 1, dtype=torch.int32, device=device
     )
-    x_coords, z_coords = torch.meshgrid(chunk_range, chunk_range, indexing="xy")
 
-    chunkX = x_coords.flatten()
-    chunkZ = z_coords.flatten()
+    for i in range(0, len(coords), block_size):
+        for j in range(0, len(coords), block_size):
+            x_block = coords[i : i + block_size + overlap]
+            z_block = coords[j : j + block_size + overlap]
 
-    seeds = get_random_seed(seed, chunkX, chunkZ)
+            x_coords, z_coords = torch.meshgrid(x_block, z_block, indexing="xy")
+            seeds = get_random_seed(seed, x_coords.flatten(), z_coords.flatten())
+            is_slime_chunk_results = next_int(seeds) % 10 == 0
+            chunks = is_slime_chunk_results.reshape(x_coords.shape)
 
-    is_slime_chunk_results = next_int(seeds) % 10 == 0
-    chunks = is_slime_chunk_results.reshape(x_coords.shape)
-
-    return chunks
+            # 返回 (i, j) 偏移 + 分块数据
+            yield i, j, chunks
 
 
-def run(mode, radius, threshold, device=device):
+@torch.compiler.disable
+def detect_and_log_matches(
+    chunk_tensor, pattern_tensor, threshold, i, j, chunk_radius, seed
+):
     """
-    循环获取随机世界种子或使用用户给定种子值, 计算该世界在 radius 半径里刷怪范围内的 阈值>=threshold 的史莱姆区块数
+    对输入的 chunk_tensor 进行卷积匹配，若匹配值 >= threshold，则打印匹配位置和数值。
 
     Args:
-        mode (str or int): 运行模式值
-        radius (int): 检测半径
-        threshold (int): 计数阈值
-        device (torch.device): 默认即可, 参数在此处作为调试使用
+        chunk_tensor (torch.Tensor): [H, W] 的布尔或整数张量，表示当前分块的史莱姆区块
+        pattern_tensor (torch.Tensor): [1, 1, H_p, W_p] 的卷积核
+        threshold (int): 匹配阈值
+        i (int): 当前块在全局 Y 方向的起始索引偏移
+        j (int): 当前块在全局 X 方向的起始索引偏移
+        chunk_radius (int): 全局检测半径（用于坐标还原）
+        seed (torch.Tensor): 当前世界种子（用于打印）
     """
-    chunk_radius = radius + SPAWN_RADIUS
+    chunk_tensor = chunk_tensor[None, None].float()  # [1, 1, H, W]
+    conv_result = F.conv2d(chunk_tensor, pattern_tensor)
 
-    pattern_tensor = PATTERN.float().unsqueeze(0).unsqueeze(0)
-    logging.debug(f"pattern_tensor = {pattern_tensor}")
+    # 去除卷积引入的边缘无效区域
+    valid_result = conv_result[
+        :, :, : -(PATTERN.shape[-2] - 1), : -(PATTERN.shape[-1] - 1)
+    ]
 
-    def process_seed(seed):
-        detected_chunks = detect_slime_chunk(seed, chunk_radius)
-        chunk_tensor = detected_chunks.float().unsqueeze(0).unsqueeze(0)
-
-        conv_result = F.conv2d(chunk_tensor, pattern_tensor)
-
-        mask = conv_result >= threshold
-        if mask.any() > 0:
-            positions = torch.nonzero(mask, as_tuple=False)
-            values = conv_result[mask]
-
-            for pos, value in zip(positions, values):
-                h, w = pos[-2:].tolist()
-                x = w - chunk_radius + 7
-                z = h - chunk_radius + 7
-                message = f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
-                log_and_print(message)
-        elif DEBUG:
-            logging.debug(
-                f"This World isn't have exceed the threshold value: seed = {seed.item()}"
+    mask = valid_result >= threshold
+    if mask.any():
+        positions = torch.nonzero(mask, as_tuple=False)
+        values = valid_result[mask]
+        for pos, value in zip(positions, values):
+            h, w = pos[-2:].tolist()
+            x = w + j - chunk_radius + SPAWN_RADIUS
+            z = h + i - chunk_radius + SPAWN_RADIUS
+            log_and_print(
+                f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
             )
 
-        if DEBUG:
-            logging.debug(f"seed = {seed.item()}")
-            logging.debug(f"detected_chunks = {detected_chunks}")
-            logging.debug(f"chunk_tensor = {chunk_tensor}")
-            logging.debug(f"conv_result= {conv_result}")
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_seed, seed) for seed in generate_seeds(mode)]
-        for future in concurrent.futures.as_completed(futures):
-            if mode != DEFAULT_MODE:
-                break
+@torch.compile(mode="reduce-overhead", dynamic=False)
+def process_seed(seed, threshold, chunk_radius, pattern_tensor):
+    if not isinstance(seed, torch.Tensor):
+        seed = torch.tensor(seed, dtype=torch.int64, device=device)
+    else:
+        seed = seed.to(device, dtype=torch.int64)
+
+    for i, j, chunk_tensor in detect_slime_chunk(seed, chunk_radius):
+        detect_and_log_matches(
+            chunk_tensor, pattern_tensor, threshold, i, j, chunk_radius, seed
+        )
+
+
+def run(mode, radius, threshold):
+    chunk_radius = radius + SPAWN_RADIUS
+    pattern_tensor = PATTERN.float()
+
+    # 单种子模式：同步执行，it/s = chunks/s
+    if mode != DEFAULT_MODE:
+        for seed in generate_seeds(mode):
+            try:
+                # 使用 tqdm 包装 detect_slime_chunk 的迭代器，只显示速率
+                for i, j, chunk_tensor in tqdm(
+                    detect_slime_chunk(seed, chunk_radius),
+                    desc=f"Processing seed {seed.item()}",
+                    dynamic_ncols=True,
+                    bar_format="{desc} | {rate_fmt}",
+                    leave=True,
+                ):
+                    detect_and_log_matches(
+                        chunk_tensor,
+                        pattern_tensor,
+                        threshold,
+                        i,
+                        j,
+                        chunk_radius,
+                        seed,
+                    )
+            except Exception:
+                logging.exception("Error processing single seed")
+        return
+
+    # 多种子模式：异步线程池
+    with tqdm(
+        desc="Processing seeds",
+        dynamic_ncols=True,
+        bar_format="{desc} | {rate_fmt} | Total: {n_fmt}",
+    ) as pbar:
+
+        def wrapped_process_seed(seed):
+            try:
+                process_seed(seed, threshold, chunk_radius, pattern_tensor)
+            except Exception:
+                logging.exception(f"Error processing seed {seed.item()}")
+            finally:
+                pbar.update(1)  # 任务完成才更新，确保速率准确
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = []
+            for seed in generate_seeds(mode):
+                future = executor.submit(wrapped_process_seed, seed)
+                futures.append(future)
+                # 不在这里 update，等任务完成再 update（速率更真实）
+
+                # 防止任务堆积，定期清理已完成
+                if len(futures) > 100:
+                    done, not_done = concurrent.futures.wait(
+                        futures,
+                        timeout=0.1,
+                        return_when=concurrent.futures.FIRST_COMPLETED,
+                    )
+                    futures = list(not_done)
 
 
 def main():
     init_logging()
+
+    log_and_print(f"Torch use device: {device}")
 
     mode, radius, threshold = get_user_inputs()
     log_and_print(
         f"mode or single seed number = {'multiple seeds' if mode == DEFAULT_MODE else mode}\nradius = {radius}\nthreshold = {threshold}"
     )
 
-    log_and_print(f"Torch use device: {device}")
-
-    run(mode, radius, threshold, device=device)
+    try:
+        run(mode, radius, threshold)
+    except KeyboardInterrupt:
+        print("\n🛑 程序被用户中断，正在安全退出...")
+        logging.info("Program interrupted by user.")
+        logging.shutdown()
+        sys.exit(0)
+    except Exception:
+        logging.exception("Unexpected error in main")
+        logging.shutdown()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
