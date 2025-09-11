@@ -222,7 +222,7 @@ def detect_and_log_matches(
             x = x_start + w + SPAWN_RADIUS
             z = z_start + h + SPAWN_RADIUS
             log_and_print(
-                f"\n史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
+                f"史莱姆区块数: {value.item():.0f}, 种子: {seed.item()}, 挂机点区块位置: ({x}, {z})"
             )
 
 
