@@ -1,1 +1,1 @@
-& pyinstaller -F -n SlimeChunkCounter --upx-dir ./upx ./run.py
+& pyinstaller -F --noupx -n SlimeChunkCounter ./run.py
